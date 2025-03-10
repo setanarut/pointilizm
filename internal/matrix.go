@@ -1,7 +1,4 @@
-// CC BY-NC 3.0
-// setanarut
-
-package matrix
+package internal
 
 type Mat struct {
 	Slice  []float64
@@ -19,31 +16,8 @@ func (m *Mat) At(x, y int) float64 {
 	return m.Slice[m.width*y+x]
 }
 
-// Min - get minimum value
-func (m *Mat) Min() float64 {
-	min := m.Slice[0]
-	for _, v := range m.Slice {
-		if v < min {
-			min = v
-		}
-	}
-	return min
-}
-
-// Max - get maximum value
-func (m *Mat) Max() float64 {
-	max := m.Slice[0]
-	for _, v := range m.Slice {
-		if v > max {
-			max = v
-		}
-	}
-	return max
-}
-
 // MapToRange - map all values to TargetMin/TargetMax (Normalize)
 func (m *Mat) MapToRange(TargetMin, TargetMax float64) {
-
 	// find min/max
 	min, max := m.Slice[0], m.Slice[0]
 	for _, v := range m.Slice {
@@ -65,7 +39,7 @@ func NewMatrix(w, h int) Mat {
 	var mat = Mat{
 		width:  w,
 		height: h,
-		Slice:  make([]float64, w*h, w*h),
+		Slice:  make([]float64, w*h),
 	}
 	return mat
 }

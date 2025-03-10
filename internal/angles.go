@@ -1,15 +1,14 @@
-package angles
+package internal
 
 import (
 	"image"
 	"math"
 
 	"github.com/disintegration/gift"
-	"github.com/setanarut/pointilizm/matrix"
 )
 
 // GetAngles get vector field angles
-func GetAngles(im image.Image) matrix.Mat {
+func GetAngles(im image.Image) Mat {
 	var sigma float32 = 30
 	normalize := false
 	size := im.Bounds().Max
@@ -44,10 +43,10 @@ func GetAngles(im image.Image) matrix.Mat {
 	ScharrX.Draw(ScharrXImage, im)
 
 	// angle matrix
-	angles := matrix.NewMatrix(size.X, size.Y)
+	angles := NewMatrix(size.X, size.Y)
 
-	for y := 0; y < size.Y; y++ {
-		for x := 0; x < size.X; x++ {
+	for y := range size.Y {
+		for x := range size.X {
 
 			dx := ScharrXImage.Gray16At(x, y).Y
 			dy := ScharrYImage.Gray16At(x, y).Y
@@ -55,10 +54,9 @@ func GetAngles(im image.Image) matrix.Mat {
 			// calculate vector angle
 			dir := math.Atan2(float64(dx), float64(dy))
 
-			angles.Set(x,y, dir)
+			angles.Set(x, y, dir)
 		}
 	}
-
 
 	return angles
 }
