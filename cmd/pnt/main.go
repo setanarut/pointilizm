@@ -2,72 +2,67 @@ package main
 
 import (
 	"fmt"
-	"image"
-	"math"
 
 	"github.com/cenkalti/dominantcolor"
 	"github.com/fogleman/gg"
 	"github.com/lucasb-eyer/go-colorful"
-	"github.com/setanarut/pointilizm/v2/internal"
+	it "github.com/setanarut/pointilizm/v2/internal"
 )
 
+var ctx *gg.Context
+
 func main() {
-	// median := gift.New(gift.Median(7, false))
-	img := internal.LoadImage("/Users/haz/Documents/GitHub/Pointilizm/assets/lake.jpg")
+	opts := &Options{
+		Colors:            20,
+		GridSize:          5,
+		BrushRadiusX:      3,
+		BrushRadiusY:      5,
+		RandomizeStokeMin: -10,
+		RandomizeStokeMax: 10,
+	}
+	inputImage := it.LoadImage("./lake.jpg")
+	ctx = gg.NewContextForImage(inputImage)
 
-	// brush directions
-	dir := internal.GetAngles(img)
-	dir.MapToRange(0.0, math.Pi*2)
+	brushAngleGrid := it.GetAngles(inputImage, 30)
 
-	palette := internal.ToColorfulPalette(dominantcolor.FindN(img, 20))
-	temp := palette
+	palette := it.ToColorfulPalette(dominantcolor.FindN(inputImage, opts.Colors))
 
-	medianImage := image.NewRGBA(img.Bounds())
-	// median.Draw(medianImage, img)
-	ctx := gg.NewContextForImage(medianImage)
+	paint(palette, brushAngleGrid, opts)
+	paint(
+		it.VaryPalette(palette, it.RandRange(-10, 10), it.RandRange(-0.2, 0.2), 0),
+		brushAngleGrid,
+		opts,
+	)
 
-	// plot(dir, img, pos, ctx, palette, 3, 3)
-
-	palette = internal.VaryPalette(temp, -20, -0.2, 0.4)
-	plot(dir, img, ctx, palette, 3, 30)
-
-	// palette = internal.VaryPalette(temp, 0, 0, 0.1)
-	// plot(dir, img, ctx, palette, 3, 20)
-
-	// palette = internal.VaryPalette(temp, 10, 0.2, 0)
-	// plot(dir, img, ctx, palette, 2, 10)
-
-	// palette = internal.VaryPalette(temp, 0, -0.3, 0.1)
-	// plot(dir, img, ctx, palette, 2, 10)
-
-	// palette = internal.VaryPalette(temp, 0, 0.20, 0)
-	// plot(dir, img, ctx, palette, 3, 20)
-
-	// palette = internal.VaryPalette(temp, -20, 0.5, 0.1)
-	// plot(dir, img, ctx, palette, 3, 10)
-
-	// utils.PaletteToImage("assets/palette.png", palette, 30, 4)
-	ctx.SavePNG("/Users/haz/Documents/GitHub/Pointilizm/lakeP.png")
+	// it.PaletteToImage("./palette.png", palette, 30, 4)
+	ctx.SavePNG("./out.png")
 }
 
-// g = grid resolution, s = scale
-func plot(dir internal.Mat, img image.Image, ctx *gg.Context, palette []colorful.Color, s float64, g int) {
+func paint(palette []colorful.Color, brushAngleGrid [][]float64, o *Options) {
 	fmt.Println("drawing pass")
 	posX, posY := 0.0, 0.0
-	for y := 0; y < img.Bounds().Max.Y; y += g {
-		for x := 0; x < img.Bounds().Max.X; x += g {
+	for y := 0; y < ctx.Height(); y += o.GridSize {
+		for x := 0; x < ctx.Width(); x += o.GridSize {
 			posX, posY = float64(x), float64(y)
-			posX += internal.RandRange(-10, 10)
-			posY += internal.RandRange(-10, 10)
-			clr := internal.NearestColor(img.At(int(posX), int(posY)), palette)
-			rclr := internal.VaryColor(clr, internal.RandRange(-10.0, 10.0), internal.RandRange(-0.5, 0.5), 0)
+			posX += it.RandRange(o.RandomizeStokeMin, o.RandomizeStokeMax)
+			posY += it.RandRange(o.RandomizeStokeMin, o.RandomizeStokeMax)
+			clr := it.NearestColor(ctx.Image().At(int(posX), int(posY)), palette)
+			rclr := it.VaryColor(clr, it.RandRange(-10.0, 10.0), it.RandRange(-0.5, 0.5), 0)
 			ctx.SetColor(rclr)
 			ctx.Push()
-			ctx.RotateAbout(dir.At(x, y), posX, posY)
-			// brushSize := dir.At(x,y)
-			ctx.DrawEllipse(posX, posY, 3, 5)
+			ctx.RotateAbout(brushAngleGrid[y][x], posX, posY)
+			ctx.DrawEllipse(posX, posY, o.BrushRadiusX, o.BrushRadiusY)
 			ctx.Pop()
 			ctx.Fill()
 		}
 	}
+}
+
+type Options struct {
+	Colors            int
+	GridSize          int
+	BrushRadiusX      float64
+	BrushRadiusY      float64
+	RandomizeStokeMin float64
+	RandomizeStokeMax float64
 }

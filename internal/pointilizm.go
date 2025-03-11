@@ -1,16 +1,90 @@
 package internal
 
 import (
-	"fmt"
 	"image"
 	"image/color"
 	"image/png"
 	"log"
+	"math"
 	"math/rand/v2"
 	"os"
 
+	"github.com/disintegration/gift"
+	"github.com/fogleman/gg"
 	"github.com/lucasb-eyer/go-colorful"
 )
+
+const Pi2 = math.Pi * 2
+
+// GetAngles get vector field angles
+func GetAngles(im image.Image, blurSigma float32) [][]float64 {
+	angles := MakeGrid(im.Bounds().Size())
+
+	filterScharrX := gift.Convolution(
+		[]float32{
+			3, 0, -3,
+			10, 1, -10,
+			3, 0, -3,
+		},
+		false, false, false, 0,
+	)
+
+	filterScharrY := gift.Convolution(
+		[]float32{
+			3, 10, 3,
+			0, 0, 0,
+			-3, -10, -3,
+		},
+		false, false, false, 0,
+	)
+
+	// scharr filters
+	ScharrXFilter := gift.New(filterScharrX, gift.GaussianBlur(blurSigma))
+	ScharrYFilter := gift.New(filterScharrY, gift.GaussianBlur(blurSigma))
+
+	// calculate new bounds
+	GrayXImageBounds := ScharrXFilter.Bounds(im.Bounds())
+	GrayYImageBounds := ScharrYFilter.Bounds(im.Bounds())
+
+	// new gray images
+	GrayXImage := image.NewGray16(GrayXImageBounds)
+	GrayYImage := image.NewGray16(GrayYImageBounds)
+
+	// apply Kernels
+	ScharrXFilter.Draw(GrayXImage, im)
+	ScharrYFilter.Draw(GrayYImage, im)
+
+	for y := range im.Bounds().Dy() {
+		for x := range im.Bounds().Dx() {
+			// brush angle
+			angles[y][x] = math.Atan2(
+				float64(GrayYImage.Gray16At(x, y).Y),
+				float64(GrayXImage.Gray16At(x, y).Y),
+			)
+		}
+	}
+
+	NormalizeAngles(angles)
+
+	return angles
+}
+
+// NormalizeAngles
+func NormalizeAngles(arr [][]float64) {
+	minVal := arr[0][0]
+	maxVal := arr[0][0]
+	for y := range arr {
+		for x := range arr[y] {
+			minVal = min(minVal, arr[y][x])
+			maxVal = max(maxVal, arr[y][x])
+		}
+	}
+	for y := range arr {
+		for x := range arr[y] {
+			arr[y][x] = MapRange(arr[y][x], minVal, maxVal, 0, Pi2)
+		}
+	}
+}
 
 // MapRange map range to another range
 func MapRange(v, v1, v2, min, max float64) float64 {
@@ -61,21 +135,11 @@ func VaryPalette(p []colorful.Color, h float64, s float64, v float64) []colorful
 }
 
 // ToColorfulPalette convert []color.Color or []color.RGBA to []colorful.Color
-func ToColorfulPalette(i any) []colorful.Color {
+func ToColorfulPalette(plt []color.RGBA) []colorful.Color {
 	var colorfulPalette []colorful.Color
-	switch plt := i.(type) {
-	case []color.Color:
-		for index := range plt {
-			clr, _ := colorful.MakeColor(plt[index])
-			colorfulPalette = append(colorfulPalette, clr)
-		}
-	case []color.RGBA:
-		for index := range plt {
-			clr, _ := colorful.MakeColor(plt[index])
-			colorfulPalette = append(colorfulPalette, clr)
-		}
-	default:
-		fmt.Printf("only []color.Color or []color.RGBA")
+	for _, v := range plt {
+		clr, _ := colorful.MakeColor(v)
+		colorfulPalette = append(colorfulPalette, clr)
 	}
 	return colorfulPalette
 }
@@ -107,54 +171,30 @@ func SaveImage(filename string, img image.Image) {
 	}
 }
 
-// // paletteToImage saves pallette as image
-// func paletteToImage(fileName string, p []colorful.Color, scale int, row int) {
-// 	w := len(p) / row * scale
-// 	h := scale * row
-// 	c := gg.NewContext(len(p)/row*scale, scale*row)
-// 	paletteIndex := 0
-// 	for y := 0; y < h; y += scale {
-// 		for x := 0; x < w; x += scale {
-// 			c.SetColor(p[paletteIndex])
-// 			c.DrawRectangle(float64(x), float64(y), float64(scale), float64(scale))
-// 			c.Fill()
-// 			paletteIndex++
-// 		}
-// 	}
-// 	c.SavePNG(fileName)
-// }
+func MakeGrid(size image.Point) [][]float64 {
+	var tm [][]float64
+	for range size.Y {
+		tm = append(tm, make([]float64, size.X))
+	}
+	return tm
+}
 
-// // findMin find minimum
-// func findMin(arr []float64) float64 {
-// 	min := arr[0]
-// 	for _, v := range arr {
-// 		if v < min {
-// 			min = v
-// 		}
-// 	}
-// 	return min
-// }
-
-// // findMax find max
-// func findMax(arr []float64) float64 {
-// 	min := arr[0]
-// 	for _, v := range arr {
-// 		if v > min {
-// 			min = v
-// 		}
-// 	}
-// 	return min
-// }
-
-// // indexOf finds index of value in array
-// func indexOf(arr []float64, val float64) int {
-// 	for pos, v := range arr {
-// 		if v == val {
-// 			return pos
-// 		}
-// 	}
-// 	return -1
-// }
+// paletteToImage saves pallette as image
+func PaletteToImage(fileName string, p []colorful.Color, scale int, row int) {
+	w := len(p) / row * scale
+	h := scale * row
+	c := gg.NewContext(len(p)/row*scale, scale*row)
+	paletteIndex := 0
+	for y := 0; y < h; y += scale {
+		for x := 0; x < w; x += scale {
+			c.SetColor(p[paletteIndex])
+			c.DrawRectangle(float64(x), float64(y), float64(scale), float64(scale))
+			c.Fill()
+			paletteIndex++
+		}
+	}
+	c.SavePNG(fileName)
+}
 
 // // ColorToImage save color as image
 // func ColorToImage(fileName string, c colorful.Color) {
