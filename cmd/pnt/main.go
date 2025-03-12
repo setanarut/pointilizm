@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"image"
+	"os"
 
 	"github.com/cenkalti/dominantcolor"
 	"github.com/fogleman/gg"
@@ -12,46 +14,57 @@ import (
 var ctx *gg.Context
 
 func main() {
+	args := os.Args
+
 	opts := &Options{
-		Colors:            20,
-		GridSize:          5,
-		BrushRadiusX:      3,
-		BrushRadiusY:      5,
-		RandomizeStokeMin: -10,
-		RandomizeStokeMax: 10,
+		Colors:                 30,
+		GridSize:               4,
+		BlurSigma:              30,
+		BrushRadiusX:           3,
+		BrushRadiusY:           6,
+		GridRandomizeOffsetMin: -30,
+		GridRandomizeOffsetMax: 30,
 	}
-	inputImage := it.LoadImage("./lake.jpg")
+	inputImage := it.LoadImage(args[1])
+
 	ctx = gg.NewContextForImage(inputImage)
 
-	brushAngleGrid := it.GetAngles(inputImage, 30)
+	brushAngleGrid := it.GetAngles(inputImage, opts.BlurSigma)
 
 	palette := it.ToColorfulPalette(dominantcolor.FindN(inputImage, opts.Colors))
-
-	paint(palette, brushAngleGrid, opts)
 	paint(
-		it.VaryPalette(palette, it.RandRange(-10, 10), it.RandRange(-0.2, 0.2), 0),
+		inputImage,
+		palette,
 		brushAngleGrid,
 		opts,
 	)
+	fmt.Println("Done!")
 
 	// it.PaletteToImage("./palette.png", palette, 30, 4)
-	ctx.SavePNG("./out.png")
+	ctx.SavePNG(args[2])
 }
 
-func paint(palette []colorful.Color, brushAngleGrid [][]float64, o *Options) {
-	fmt.Println("drawing pass")
+func paint(inputImage image.Image, palette []colorful.Color, brushAngleGrid [][]float64, o *Options) {
+	fmt.Println("painting...")
 	posX, posY := 0.0, 0.0
 	for y := 0; y < ctx.Height(); y += o.GridSize {
 		for x := 0; x < ctx.Width(); x += o.GridSize {
 			posX, posY = float64(x), float64(y)
-			posX += it.RandRange(o.RandomizeStokeMin, o.RandomizeStokeMax)
-			posY += it.RandRange(o.RandomizeStokeMin, o.RandomizeStokeMax)
-			clr := it.NearestColor(ctx.Image().At(int(posX), int(posY)), palette)
-			rclr := it.VaryColor(clr, it.RandRange(-10.0, 10.0), it.RandRange(-0.5, 0.5), 0)
+			posX += it.RandRange(o.GridRandomizeOffsetMin, o.GridRandomizeOffsetMax)
+			posY += it.RandRange(o.GridRandomizeOffsetMin, o.GridRandomizeOffsetMax)
+			clr := it.NearestColor(inputImage.At(int(posX), int(posY)), palette)
+			rclr := it.VaryColor(clr, it.RandRange(-10, 10), it.RandRange(0, 0.5), 0)
 			ctx.SetColor(rclr)
 			ctx.Push()
 			ctx.RotateAbout(brushAngleGrid[y][x], posX, posY)
-			ctx.DrawEllipse(posX, posY, o.BrushRadiusX, o.BrushRadiusY)
+			r := it.RandRange(-2, 2)
+			// r := 0.0
+			ctx.DrawEllipse(
+				posX,
+				posY,
+				o.BrushRadiusX+r,
+				o.BrushRadiusY+r,
+			)
 			ctx.Pop()
 			ctx.Fill()
 		}
@@ -59,10 +72,11 @@ func paint(palette []colorful.Color, brushAngleGrid [][]float64, o *Options) {
 }
 
 type Options struct {
-	Colors            int
-	GridSize          int
-	BrushRadiusX      float64
-	BrushRadiusY      float64
-	RandomizeStokeMin float64
-	RandomizeStokeMax float64
+	Colors                 int
+	GridSize               int
+	BlurSigma              float32
+	BrushRadiusX           float64
+	BrushRadiusY           float64
+	GridRandomizeOffsetMin float64
+	GridRandomizeOffsetMax float64
 }
