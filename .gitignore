@@ -3,6 +3,11 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/master/VisualStudio.gitignore
 
+/assets
+out.png
+palette.png
+lake.jpg
+
 # User-specific files
 *.rsuser
 *.suo
